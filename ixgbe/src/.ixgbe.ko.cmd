@@ -1,0 +1,1 @@
+cmd_/home/minh/ixgbe/src/ixgbe.ko := ld -r -m elf_i386 -T /usr/src/linux-headers-3.2.0-67-generic/scripts/module-common.lds --build-id  -o /home/minh/ixgbe/src/ixgbe.ko /home/minh/ixgbe/src/ixgbe.o /home/minh/ixgbe/src/ixgbe.mod.o

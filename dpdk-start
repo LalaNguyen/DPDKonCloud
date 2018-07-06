@@ -1,0 +1,6 @@
+#!/bin/sh
+
+export RTE_SDK=$HOME/dpdk16.07.2
+export RTE_TARGET=i686-native-linuxapp-gcc
+sudo sh -c "echo '50' >> /sys/kernel/mm/hugepages/hugepages-4096kB/nr_hugepages"
+sudo modprobe uio
