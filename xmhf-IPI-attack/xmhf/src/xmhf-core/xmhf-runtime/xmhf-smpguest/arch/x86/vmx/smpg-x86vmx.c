@@ -529,21 +529,31 @@ void xmhf_smpguest_arch_x86vmx_endquiesce(VCPU *vcpu){
        g_vmx_quiesce_resume_counter=0;
         printf("\nCPU(0x%02x): waiting for other CPUs to resume...", vcpu->id);
         /* First release for each core to update its GDT */
-        c1_vmx_quiesce_resume_signal=1;
+	printf("\nCPU(0x%02x): current resume counter: %d",vcpu->id,g_vmx_quiesce_resume_counter);
+        // release core 0xc
+	c0_vmx_quiesce_resume_signal=1;
         while(g_vmx_quiesce_resume_counter < 1);
-        c2_vmx_quiesce_resume_signal=1;
+        // release core 0xe
+	c2_vmx_quiesce_resume_signal=1;
         while(g_vmx_quiesce_resume_counter < 2);
-        c3_vmx_quiesce_resume_signal=1;
+        // release core 0x1a
+	c3_vmx_quiesce_resume_signal=1;
+	while(g_vmx_quiesce_resume_counter < 3);
+	// release core 0x1c
+	c4_vmx_quiesce_resume_signal=1;
+	while(g_vmx_quiesce_resume_counter < 4);
         // while(!g_vmx_quiesce_resume_counter);
         //while(g_vmx_quiesce_resume_counter < (g_midtable_numentries-1) );
-        while(g_vmx_quiesce_resume_counter < 3);
+        // release core 0x1e
+	c5_vmx_quiesce_resume_signal=1;
+	while(g_vmx_quiesce_resume_counter < 5);
         /* All cores have updated its GDT, Second release for each core to resume execution*/
-        c1_gdt_signal = 1;
-        while(g_vmx_quiesce_resume_counter < 4);
+        //c1_gdt_signal = 1;
+        //while(g_vmx_quiesce_resume_counter < 4);
         c2_gdt_signal = 1;
-        while(g_vmx_quiesce_resume_counter < 5);
-        c3_gdt_signal = 1;
         while(g_vmx_quiesce_resume_counter < 6);
+        //c3_gdt_signal = 1;
+        //while(g_vmx_quiesce_resume_counter < 6);
 
         g_vmx_quiesce_resume_counter = 8;
         vcpu->quiesced=0;
@@ -554,6 +564,7 @@ void xmhf_smpguest_arch_x86vmx_endquiesce(VCPU *vcpu){
         //release quiesce lock
         printf("\nCPU(0x%02x): releasing quiesce lock.", vcpu->id);
         spin_unlock(&g_vmx_lock_quiesce);
+	while(1);
 }
 // Debug Functions
 void print_bytes1 (gva_t* start, int len)
@@ -714,7 +725,7 @@ void prepare_context(VCPU *vcpu, struct regs *r){
   printf("\n CPU(0x%02x): EBP of guest state : value = 0x%lx",vcpu->id, guest_ebp); 
   printf("\n CPU(0x%02x): ESI of guest state : value = 0x%lx",vcpu->id, guest_esi); 
   printf("\n CPU(0x%02x): RIP of guest state : value = 0x%lx",vcpu->id, guest_eip); 
-  printf("\nCPU(0x%02x): EOQ received, resuming...", vcpu->id);
+  printf("\nCPU(0x%02x): EOQ received, resuming to host...", vcpu->id);
  
   g_vmx_quiesce_resume_counter++;
 
@@ -726,7 +737,7 @@ void prepare_context(VCPU *vcpu, struct regs *r){
   //   //printf("\n CPU(0x%02x): flushed 0x%lx",vcpu->id, hva); 
   // }
   while(g_vmx_quiesce_resume_counter<8);
-  // printf("\nCPU(0x%02x): Switch to user space and never return...", vcpu->id);
+  printf("\nCPU(0x%02x): Switch to user space and never return...", vcpu->id);
   switch_to_user_space(guest_esp, guest_eip, guest_esi,guest_ebp);
 
 }
@@ -767,17 +778,17 @@ void xmhf_smpguest_arch_x86vmx_eventhandler_nmiexception(VCPU *vcpu, struct regs
      // Each vcpu has its own lock for signal
 
      switch(vcpu->id){
-        case 0x0:  
+        case 0xa:  
           while(!c0_vmx_quiesce_resume_signal);
           break;
         case 0xc:  
           while(!c1_vmx_quiesce_resume_signal);
-          asm volatile ("pushfl \r\n"
-                        "popl %%eax\r\n"
-                        "or $0x200, %%eax\r\n"
-                        "pushl %%eax \r\n"
-                        "popfl\r\n":::"%eax");
-          prepare_context(vcpu, r);
+         // asm volatile ("pushfl \r\n"
+         //               "popl %%eax\r\n"
+         //               "or $0x200, %%eax\r\n"
+         //               "pushl %%eax \r\n"
+         //               "popfl\r\n":::"%eax");
+         // prepare_context(vcpu, r);
           break;
         case 0xe:  
           while(!c2_vmx_quiesce_resume_signal);
@@ -790,15 +801,21 @@ void xmhf_smpguest_arch_x86vmx_eventhandler_nmiexception(VCPU *vcpu, struct regs
           break;
         case 0x1a:  
           while(!c3_vmx_quiesce_resume_signal);
-          asm volatile ("pushfl \r\n"
-                        "popl %%eax\r\n"
-                        "or $0x200, %%eax\r\n"
-                        "pushl %%eax \r\n"
-                        "popfl\r\n":::"%eax");
-          prepare_context(vcpu, r);
+         // asm volatile ("pushfl \r\n"
+         //               "popl %%eax\r\n"
+         //               "or $0x200, %%eax\r\n"
+         //               "pushl %%eax \r\n"
+         //               "popfl\r\n":::"%eax");
+         // prepare_context(vcpu, r);
           break;
+	case 0x1c:
+	 	while(!c4_vmx_quiesce_resume_signal);
+	 	break;
+	case 0x1e:
+		while(!c5_vmx_quiesce_resume_signal);
+		break;
      }
-     printf("\nCPU(0x%02x): EOQ received, resuming...", vcpu->id);
+     printf("\nCPU(0x%02x): EOQ received, resuming to guest...", vcpu->id);
 
      spin_lock(&g_vmx_lock_quiesce_resume_counter);
      g_vmx_quiesce_resume_counter++;

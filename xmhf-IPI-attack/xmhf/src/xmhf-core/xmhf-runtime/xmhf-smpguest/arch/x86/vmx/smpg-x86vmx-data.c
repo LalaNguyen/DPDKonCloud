@@ -105,6 +105,11 @@ u32 c2_vmx_quiesce_resume_signal __attribute__(( section(".data") )) = 0;
 
 u32 c3_vmx_quiesce_resume_signal __attribute__(( section(".data") )) = 0;    
 
+u32 c4_vmx_quiesce_resume_signal __attribute__(( section(".data") )) = 0;
+
+u32 c5_vmx_quiesce_resume_signal __attribute__(( section(".data") )) = 0;
+
+
 u32 c1_gdt_signal __attribute__(( section(".data") )) = 0;  
 
 u32 c2_gdt_signal __attribute__(( section(".data") )) = 0;  

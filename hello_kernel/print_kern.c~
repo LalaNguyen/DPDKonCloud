@@ -1,0 +1,23 @@
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/sched.h>
+#include <linux/mm.h>
+#include <asm/apic.h>
+#include <linux/cpu.h>
+
+MODULE_LICENSE("GPL");
+
+
+static int mm_exp_load(void){
+	int * addr = 0xfee00020;
+	printk("Local APIC ID: %08x\n", *addr);
+	return 0;
+}
+
+static void mm_exp_unload(void){
+	return;
+}
+
+module_init(mm_exp_load);
+module_exit(mm_exp_unload);
