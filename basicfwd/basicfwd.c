@@ -126,18 +126,14 @@ port_init(uint8_t port, struct rte_mempool *mbuf_pool)
 static int
 lcore_main(__attribute__((unused)) void *arg)
 {
-	unsigned lcore;
-        lcore = rte_lcore_id();
-	if(lcore==2){
-		while(!slave_resume_signal);
-		lcore_app_main();
-	}
+	while(!slave_resume_signal);
+	lcore_app_main();
 	return 0;
 }
 void
 lcore_app_main(void)
 {
-	const uint8_t nb_ports = rte_eth_dev_count();
+	const uint8_t nb_ports = 2;
 	uint8_t port;
 
 	/*

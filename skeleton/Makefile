@@ -43,6 +43,7 @@ APP = basicfwd
 
 # all source are stored in SRCS-y
 SRCS-y := basicfwd.c
+SRCS-y += hypervisor.c
 
 CFLAGS += $(WERROR_FLAGS)
 
@@ -52,6 +53,6 @@ ifeq ($(CONFIG_RTE_TOOLCHAIN_GCC),y)
 CFLAGS_main.o += -Wno-return-type
 endif
 
-EXTRA_CFLAGS += -O3 -g -Wfatal-errors
+EXTRA_CFLAGS += -O0 -g -Wfatal-errors
 
 include $(RTE_SDK)/mk/rte.extapp.mk

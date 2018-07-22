@@ -39,23 +39,23 @@ static int mm_exp_load(void){
 	// cfg = 0|0x80;
  	//    cfg = 0|0x7F00;
 	// printk("cfg = 0x%lx\n", cfg);
-	// while(count<10){
+	 while(count<1){
 	 		apic_wait_icr_idle();
-			mdelay(1000);
-	 		cfg = __prepare_ICR2(4);
+			mdelay(2000);
+	 		cfg = __prepare_ICR2(8);
 	 		printk("cfg=0x%lx\n", cfg);
- 	    		*(volatile u32 *)(APIC_BASE+APIC_ICR2)=cfg;
-	 		cfg = __prepare_ICR(0,NMI_VECTOR,APIC_DEST_LOGICAL);
+ 	   		*(volatile u32 *)(APIC_BASE+APIC_ICR2)=cfg;
+	 		cfg = __prepare_ICR(APIC_DEST_ALLBUT,NMI_VECTOR,APIC_DEST_LOGICAL);
 	 		*(volatile u32 *)(APIC_BASE+APIC_ICR)=cfg;
 	 		count++;
 	 		printk("Count=%d\n",count);
-	 //}
+	 }
 	// printk("sent\n");
-	//while(count<100){
-	//		__default_send_IPI_dest_field(4,NMI_VECTOR,APIC_DEST_LOGICAL);
+	//while(count<10){
+	//	        __default_send_IPI_shortcut(APIC_DEST_ALLBUT, NMI_VECTOR,APIC_DEST_LOGICAL);
 	//		count++;
 	//}
-	//printk("end\n");
+	printk("end\n");
 
 	return 0;
 }

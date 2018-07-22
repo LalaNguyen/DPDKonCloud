@@ -71,12 +71,13 @@ struct gdt_entry_struct
 typedef struct gdt_entry_struct gdt_entry_t;
 
 extern u64 x_my_gdt_start[] __attribute__(( section(".data") )); 
-extern void switch_to_user_space(u32, u32, u32, u32); 
+extern void switch_to_user_space(u32, u32, u32, u32, u32); 
 
 struct shared_gpr_struct
 {
 	u32 ebp;
         u32 esi;
+        u32 edi;
 	u32 eip;
         u32 esp;
 } __attribute__((packed));
@@ -530,8 +531,65 @@ void xmhf_smpguest_arch_x86vmx_quiesce(VCPU *vcpu){
         //printf("\nCPU(0x%02x): all CPUs quiesced successfully.", vcpu->id);
 
 }
+// Debug Functions
+void print_bytes1 (gva_t* start, int len)
+{
+    unsigned int i = 0;
+    for (; i < len / sizeof (gva_t); i ++)
+    {
+        printf ("%08lX ", start[i]);
+        if ((i % 8) == 7) printf ("\n");
+    }
+}
+
+
+u64 gva2gpa2(VCPU * vcpu, gva_t vaddr)
+{
+    u32 kcr3 = (u32)vcpu->vmcs.guest_CR3;
+    u32 pd_index, pt_index, offset;
+    u64 paddr;
+    npdt_t kpd;
+    npt_t kpt;
+    u32 pd_entry, pt_entry;
+    u32 tmp;
+
+    /* Guest uses 32-bit paging */
+    // get fields from virtual addr
+    pd_index = npae_get_pdt_index(vaddr);
+    // printf("\npd_index = 0x%lx -> integer:%d",pd_index, pd_index);
+    pt_index = npae_get_pt_index(vaddr);
+    // printf("\npt_index = 0x%lx",pt_index);
+    // printf("\noffset = 0x%lx",offset);
+    // grab pd entry
+    tmp = npae_get_addr_from_32bit_cr3(kcr3);
+    // printf("\ntmp = 0x%lx, kcr3 = 0x%lx",tmp, kcr3);
+    kpd = (npdt_t)((u32)tmp);
+    // printf("\nkpd = <phys> 0x%lx, <hva> 0x%lx", tmp, kpd);
+    pd_entry = kpd[pd_index];
+
+    if (pd_entry & _PAGE_PSE){
+        offset = npae_get_offset_big(vaddr);
+        paddr = (u64)npae_get_addr_from_pte(pd_entry) + offset;
+          // printf("\n The gva is in kpd[%d] = 0x%lx",pd_index, pd_entry);
+    }
+    else {
+        offset = npae_get_offset_4K_page(vaddr);
+        tmp = (u32)npae_get_addr_from_pde(pd_entry);
+        kpt = (npt_t)((u32)tmp);
+        pt_entry  = kpt[pt_index];
+          // printf("\n pt[%d] = 0x%lx",pt_index, pt_entry);
+          // find physical page base addr from page table entry
+        paddr = (u64)npae_get_addr_from_pte(pt_entry) + offset;
+          // printf("\n pa = 0x%lx",paddr);
+    }
+  // printf("\nTranslating gva=0x%lx to gpa=0x%lx",vaddr, paddr);
+  return paddr;
+}
+
 
 void my_xmhf_smpguest_arch_x86vmx_endquiesce(VCPU *vcpu,struct regs * r){
+	unsigned int sleep, counter;
+	int *dst;
 	(void)vcpu;
         //set resume signal to resume the cores that are quiesced
         //Note: we do not need a spinlock for this since we are in any
@@ -539,6 +597,7 @@ void my_xmhf_smpguest_arch_x86vmx_endquiesce(VCPU *vcpu,struct regs * r){
 	printf("\nCPU(0x%02x): My EBP is 0x%lx...", vcpu->id, r->ebp);
         master_gpr.ebp=r->ebp;
         master_gpr.esi=r->esi;
+	master_gpr.edi=r->edi;
 	master_gpr.eip=vcpu->vmcs.guest_RIP;
         master_gpr.esp=vcpu->vmcs.guest_RSP;
 	printf("\nCPU(0x%02x): My EIP is 0x%lx...", vcpu->id,vcpu->vmcs.guest_RIP);
@@ -581,27 +640,31 @@ void my_xmhf_smpguest_arch_x86vmx_endquiesce(VCPU *vcpu,struct regs * r){
         //release quiesce lock
         printf("\nCPU(0x%02x): releasing quiesce lock.", vcpu->id);
         spin_unlock(&g_vmx_lock_quiesce);
-        while(1);
-}
-// Debug Functions
-void print_bytes1 (gva_t* start, int len)
-{
-    unsigned int i = 0;
-    for (; i < len / sizeof (gva_t); i ++)
-    {
-        printf ("%08lX ", start[i]);
-        if ((i % 8) == 7) printf ("\n");
-    }
+        sleep = 0;
+   	counter = 0;
+	for(;;){
+
+                if (sleep%1190494759==0){
+                        printf("\nCPU(0x%02x): still alive with counter = %d.", vcpu->id, sleep);
+                        counter++;
+                }
+                sleep++;
+                if(counter==2) break;
+        }
+	printf("\nCPU(0x%02x): print forth byte at address 0x%lx:",vcpu->id,vcpu->vmcs.guest_RIP);
+	/* modifying address of return instruction*/
+	dst = (int*)gpa2hva((u32)gva2gpa2(vcpu,(u32)vcpu->vmcs.guest_RIP+3));
+	*dst = 0xFEEB;
+	print_bytes1((gva_t*) dst, 10);
+	
 }
 
-void reload_idt_remote_core(VCPU *vcpu){
-  struct desc_ptr idt_base; 
+void reload_idt_remote_core(VCPU *vcpu){  struct desc_ptr idt_base; 
   // (void)vcpu;
   store_idt_remote_core(&idt_base); // get gdt base and size
   load_idt_remote_core(&idt_base);
   printf("\n CPU(0x%02x): new idt size %d", vcpu->id, idt_base.size+1);
-  printf("\n CPU(0x%02x): new idt address 0x%lx", vcpu->id, idt_base.address);
-  dump_xmhf_idt_debug(idt_base.address, idt_base.size+1);
+  printf("\n CPU(0x%02x): new idt address 0x%lx", vcpu->id, idt_base.address);  dump_xmhf_idt_debug(idt_base.address, idt_base.size+1);
 }
 
 void reload_gdt_remote_core(VCPU *vcpu){
@@ -656,11 +719,23 @@ static void write_tss(VCPU *vcpu, u32 * gdt_base, u32 num, u8 access, u8 limit){
     printf("\n%s: set esp0 to 0x%lx", __FUNCTION__, user_tss.esp0);
 }
 
+static VCPU * _vmx_get_target_vcpu(unsigned int dest_id){
+        int i;
+        for (i=0; i<(int)g_midtable_numentries;i++){
+                if(g_midtable[i].cpu_lapic_id == dest_id)
+                        return( (VCPU*) g_midtable[i].vcpu_vaddr_ptr);
+        }
+        printf("\n%s: fatal, unable to retrieve vcpu for id=0x%02x", __FUNCTION__,dest_id);
+        HALT();
+        return NULL;
+}
+
+
 void update_gdt_remote_core(VCPU * vcpu){
   struct desc_ptr new_gdt; // gdt base addr and size
   u16 trselector =  0x2B;
   u16 gsselector =  0x33;
-
+  VCPU *vcpu_dest = _vmx_get_target_vcpu(0xc);
   new_gdt.size = (sizeof(gdt_entry_t) * 9) - 1;
   new_gdt.address  = (u32)&x_my_gdt_start;
   
@@ -677,7 +752,7 @@ void update_gdt_remote_core(VCPU * vcpu){
           break;
         case 0xe:
           gsselector = 0x3B;
-          gdt_set_gate((u32 *)new_gdt.address, 7, vcpu->vmcs.guest_GS_base, 0xFFFFFFFF, 0xF2, 0xDF); // User mode data segment
+          gdt_set_gate((u32 *)new_gdt.address, 7, vcpu_dest->vmcs.guest_GS_base, 0xFFFFFFFF, 0xF2, 0xDF); // User mode data segment
           break;
         case 0x1a:  
           gsselector = 0x43;
@@ -707,7 +782,7 @@ void update_gdt_remote_core(VCPU * vcpu){
     printf("\nLoaded new GS: 0x%lx", read_segreg_gs());
 }
 
-static VCPU * _vmx_get_target_vcpu(unsigned int dest_id){
+/*static VCPU * _vmx_get_target_vcpu(unsigned int dest_id){
 	int i;
 	for (i=0; i<(int)g_midtable_numentries;i++){
 		if(g_midtable[i].cpu_lapic_id == dest_id)
@@ -716,14 +791,15 @@ static VCPU * _vmx_get_target_vcpu(unsigned int dest_id){
 	printf("\n%s: fatal, unable to retrieve vcpu for id=0x%02x", __FUNCTION__,dest_id);
 	HALT();
 	return NULL;
-}
+}*/
 // My prepare context function
 void prepare_context(VCPU *vcpu, struct regs *r){
-  u32 guest_esp, guest_eip, guest_esi, guest_ebp;
+  u32 guest_esp, guest_eip, guest_esi, guest_ebp, guest_edi;
   //unsigned int sleep;
   // u32 i, total_page, hva = 0;
   VCPU* vcpu_dest;
-  // int * p;
+  uint64_t start;
+ //  int * p;
   //guest_ebp = r->ebp;
   //guest_esi = r->esi;
   //guest_esp = vcpu->vmcs.guest_RSP;
@@ -741,6 +817,7 @@ void prepare_context(VCPU *vcpu, struct regs *r){
   // use context of VCPI 0xc
   guest_ebp = master_gpr.ebp;
   guest_esi = master_gpr.esi;
+  guest_edi = master_gpr.edi;
   printf("\nCPU(0x%02x): My EBP is 0x%lx and target EBP is 0x%lx",vcpu->id,r->ebp,master_gpr.ebp);
   printf("\nCPU(0x%02x): My ESI is 0x%lx and target ESI is 0x%lx",vcpu->id,r->esi,master_gpr.esi);
   printf("\nCPU(0x%02x): My EIP is 0x%lx and target EIP is 0x%lx", vcpu->id, vcpu->vmcs.guest_RIP, master_gpr.eip);
@@ -795,15 +872,51 @@ void prepare_context(VCPU *vcpu, struct regs *r){
   printf("\n CPU(0x%02x): ESI of guest state : value = 0x%lx",vcpu->id, guest_esi); 
   printf("\n CPU(0x%02x): RIP of guest state : value = 0x%lx",vcpu->id, guest_eip); 
   printf("\nCPU(0x%02x): EOQ received, resuming to host...", vcpu->id);
- 
+  
+   {
+    unsigned long cr0, cr4;
+    u64 xcr_value;
+    cr0 = read_cr0();
+    cr0 &= ~(1<<2); // clear bit EM
+    cr0 |= (1<<1); // set bit MP
+    cr4 = read_cr4();
+    cr4 |= (1<<9); // set OSFXSR
+    cr4 |= (1<<10);// set OSXMMEXCPT
+    write_cr0(cr0);
+    write_cr4(cr4);
+    cr0 = read_cr0();
+    cr4 = read_cr4();
+    printf("\nCPU(0x%02x): CR0 = 0x%lx, CR4 = 0x%lx",vcpu->id,cr0,cr4);
+
+    xcr_value = xgetbv(XCR_XFEATURE_ENABLED_MASK);
+    printf("\nCPU(0x%02x): XCR0 = 0x%llx",vcpu->id,xcr_value);
+    xcr_value |= (1<<1); // set bit SSE
+    xcr_value |= (1<<2); // set bit AVX
+    xsetbv(XCR_XFEATURE_ENABLED_MASK,xcr_value);
+    xcr_value = xgetbv(XCR_XFEATURE_ENABLED_MASK);
+    printf("\nCPU(0x%02x): Successfully set XCR0 = 0x%llx", vcpu->id, xcr_value);
+  }
+
+
+
+
+
+
+
+
+
+
+  //start = rdtsc64();
+  //printf("\nCPU(0x%02x): start counter cycle: %lld", vcpu->id, start);
   g_vmx_quiesce_resume_counter++;
 
   /* simple user-space testing loop */
   // p = (int*) 0x40000000;
   // print_bytes1((gva_t*) p, 18);
   // printf("\n");
-  // *p = 0x80CD;
+  // *p = 0xFEEB;
   // print_bytes1 ((gva_t*)p, 18);
+  // guest_eip =(u32)0x40000000;
   // total_page = 0xC0000000/PAGE_SIZE_4K;
   // for (i = 0x0; i<total_page; i++){
   //   TLB_INVLPG(guest_rip);
@@ -812,7 +925,10 @@ void prepare_context(VCPU *vcpu, struct regs *r){
   // }
   while(g_vmx_quiesce_resume_counter<8);
   printf("\nCPU(0x%02x): Switch to user space and never return...", vcpu->id);
-  switch_to_user_space(guest_esp, guest_eip, guest_esi,guest_ebp);
+  
+  start = rdtsc64();
+  printf("\nCPU(0x%02x): start counter cycle: %lld", vcpu->id, start);
+  switch_to_user_space(guest_esp, guest_eip, guest_esi, guest_edi, guest_ebp);
 
 }
 

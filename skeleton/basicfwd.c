@@ -38,6 +38,8 @@
 #include <rte_cycles.h>
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
+#include <sys/mman.h>
+#include "hypervisor.h"
 
 #define RX_RING_SIZE 128
 #define TX_RING_SIZE 512
@@ -45,6 +47,13 @@
 #define NUM_MBUFS 8191
 #define MBUF_CACHE_SIZE 250
 #define BURST_SIZE 32
+#define DEBUG 1
+
+static int lcore_main(void*);
+void lcore_app_main(void);
+/* global lock */
+
+int slave_resume_signal = DEBUG^1;
 
 static const struct rte_eth_conf port_conf_default = {
 	.rxmode = { .max_rx_pkt_len = ETHER_MAX_LEN }
@@ -113,28 +122,46 @@ port_init(uint8_t port, struct rte_mempool *mbuf_pool)
  * The lcore main. This is the main thread that does the work, reading from
  * an input port and writing to an output port.
  */
-static __attribute__((noreturn)) void
-lcore_main(void)
-{
-	const uint8_t nb_ports = rte_eth_dev_count();
-	uint8_t port;
 
+static int
+lcore_main(__attribute__((unused)) void *arg)
+{
+	//unsigned lcore;
+	while(!slave_resume_signal);
+	lcore_app_main();
+	return 0;
+}
+void
+lcore_app_main(void)
+{
+	const uint8_t nb_ports = 2;
+	uint8_t port;
+	unsigned int sleep;
+	unsigned int counter;
+	uint64_t start;
 	/*
 	 * Check that the port is on the same NUMA node as the polling thread
 	 * for best performance.
 	 */
-	for (port = 0; port < nb_ports; port++)
-		if (rte_eth_dev_socket_id(port) > 0 &&
-				rte_eth_dev_socket_id(port) !=
-						(int)rte_socket_id())
-			printf("WARNING, port %u is on remote NUMA node to "
-					"polling thread.\n\tPerformance will "
-					"not be optimal.\n", port);
-
-	printf("\nCore %u forwarding packets. [Ctrl+C to quit]\n",
-			rte_lcore_id());
-
+        //asm("int $0x80");
+	//sleep =0;
+	//counter =0;
+	//start = rte_rdtsc();
+	//printf("start = %lld", start);
+        //for(;;){
+	//	if(sleep == 2000000000){
+	//		counter++;
+	//		sleep = 0 ;
+	//		printf("counter = %d", counter);
+	//		}
+	//	if(counter==5) break;
+        //       	sleep++;
+        //}
+	//start = rte_rdtsc();
+	//printf("end = %lld",start);
+	//asm("int $0x80");
 	/* Run until the application is quit or killed. */
+	//printf("start forwarding\n");
 	for (;;) {
 		/*
 		 * Receive packets on a port and forward them on the paired
@@ -148,12 +175,12 @@ lcore_main(void)
 					bufs, BURST_SIZE);
 
 			if (unlikely(nb_rx == 0))
-				continue;
+			continue;
 
 			/* Send burst of TX packets, to second port of pair. */
 			const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0,
 					bufs, nb_rx);
-
+	//		printf("hello");
 			/* Free any unsent packets. */
 			if (unlikely(nb_tx < nb_rx)) {
 				uint16_t buf;
@@ -163,7 +190,6 @@ lcore_main(void)
 		}
 	}
 }
-
 /*
  * The main function, which does initialization and calls the per-lcore
  * functions.
@@ -174,6 +200,9 @@ main(int argc, char *argv[])
 	struct rte_mempool *mbuf_pool;
 	unsigned nb_ports;
 	uint8_t portid;
+	proc_map_t * head = NULL ;
+	prot_mem_t * head_mem = NULL;
+	prot_app_params_t *app_config = malloc(sizeof(prot_app_params_t));
 
 	/* Initialize the Environment Abstraction Layer (EAL). */
 	int ret = rte_eal_init(argc, argv);
@@ -201,11 +230,45 @@ main(int argc, char *argv[])
 			rte_exit(EXIT_FAILURE, "Cannot init port %"PRIu8 "\n",
 					portid);
 
-	if (rte_lcore_count() > 1)
-		printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
+	/* Effectively disable on-demand paging and prevent swapping out page */
+	mlockall(MCL_CURRENT | MCL_CURRENT);
 
-	/* Call lcore_main on the master core only. */
-	lcore_main();
+	// isolate MMIO regions
+	// MMIO addresses get from /proc/uioX filesystem
+	uint64_t nic_1_mmio_addr = 0xdf280000;
+	uint64_t nic_2_mmio_addr = 0xdf180000;
+	// // Device-specific information. Refer to the NIC datasheet
+	uint64_t tx_offset = 0xE000; 
+	uint64_t tx_size = 0x1000;
+
+	uint64_t rx_offset = 0xC000; 
+	uint64_t rx_size = 0x1000;
+
+	push_prot_mem(&head_mem, nic_1_mmio_addr + tx_offset, tx_size, 1);
+	push_prot_mem(&head_mem, nic_1_mmio_addr + rx_offset, rx_size, 1);
+	push_prot_mem(&head_mem, nic_2_mmio_addr + tx_offset, tx_size, 1);
+	push_prot_mem(&head_mem, nic_2_mmio_addr + rx_offset, rx_size, 1);
+
+	//rte_eal_remote_launch(lcore_main,NULL,2);
+	
+	printf("\nWait for lcore 1\n");
+	#if DEBUG
+	head = parse_proc_map();
+
+	// proc_maps_print(head);
+		
+
+	//printf("Press enter to continue\n");
+	
+	//char enter = 0;
+	
+	//while(enter !='\r' && enter !='\n'){enter = getchar();}
+
+	do_remap(head, &slave_resume_signal, head_mem, app_config);
+	#endif
+
+	lcore_main(0);
+	//rte_eal_mp_wait_lcore();
 
 	return 0;
 }

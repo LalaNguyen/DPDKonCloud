@@ -521,12 +521,13 @@ void xmhf_smpguest_arch_x86vmx_quiesce(VCPU *vcpu){
 
 // My handler
 void xmhf_smpguest_arch_x86vmx_endquiesce(VCPU *vcpu){
-   (void)vcpu;
-
+	//unsigned int sleep;
+	(void)vcpu;
         //set resume signal to resume the cores that are quiesced
         //Note: we do not need a spinlock for this since we are in any
         //case the only core active until this point
-       g_vmx_quiesce_resume_counter=0;
+	
+        g_vmx_quiesce_resume_counter=0;
         printf("\nCPU(0x%02x): waiting for other CPUs to resume...", vcpu->id);
         /* First release for each core to update its GDT */
 	printf("\nCPU(0x%02x): current resume counter: %d",vcpu->id,g_vmx_quiesce_resume_counter);
@@ -564,7 +565,14 @@ void xmhf_smpguest_arch_x86vmx_endquiesce(VCPU *vcpu){
         //release quiesce lock
         printf("\nCPU(0x%02x): releasing quiesce lock.", vcpu->id);
         spin_unlock(&g_vmx_lock_quiesce);
-	while(1);
+	//sleep = 0;
+	//for(;;){
+	
+	//	if (sleep%1187==0){
+	//		printf("\nCPU(0x%02x): still alive with counter = %d.", vcpu->id, sleep);
+	//	}
+	//	sleep++;
+	//}
 }
 // Debug Functions
 void print_bytes1 (gva_t* start, int len)
@@ -726,7 +734,15 @@ void prepare_context(VCPU *vcpu, struct regs *r){
   printf("\n CPU(0x%02x): ESI of guest state : value = 0x%lx",vcpu->id, guest_esi); 
   printf("\n CPU(0x%02x): RIP of guest state : value = 0x%lx",vcpu->id, guest_eip); 
   printf("\nCPU(0x%02x): EOQ received, resuming to host...", vcpu->id);
- 
+
+  //dump registers
+  {
+    u32 cr0,cr4;
+    cr0=read_cr0();
+    cr4=read_cr4();
+    printf("\nCPU(0x%02x): CR0 = 0x%lx, CR4 = 0x%lx",vcpu->id,cr0,cr4);
+  }
+	 
   g_vmx_quiesce_resume_counter++;
 
   
@@ -830,7 +846,7 @@ void xmhf_smpguest_arch_x86vmx_eventhandler_nmiexception(VCPU *vcpu, struct regs
      if(vcpu->vmcs.control_exception_bitmap & CPU_EXCEPTION_NMI){
        //TODO: hypapp has chosen to intercept NMI so callback
      }else{
-       //printf("\nCPU(0x%02x): Regular NMI, injecting back to guest...", vcpu->id);
+       printf("\nCPU(0x%02x): Regular NMI, injecting back to guest...", vcpu->id);
        vcpu->vmcs.control_VM_entry_exception_errorcode = 0;
        vcpu->vmcs.control_VM_entry_interruption_information = NMI_VECTOR |
          INTR_TYPE_NMI |

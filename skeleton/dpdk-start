@@ -1,0 +1,21 @@
+#!/bin/bash
+
+export RTE_SDK=$HOME/dpdk16.07.2
+export RTE_TARGET=i686-native-linuxapp-gcc
+sudo sh -c "echo '10' >> /sys/kernel/mm/hugepages/hugepages-4096kB/nr_hugepages"
+#sudo sh -c "echo '1' > /sys/module/rcutree/parameters/rcu_cpu_stall_suppress"
+
+sudo mkdir -p /mnt/huge
+grep -s '/mnt/huge' /proc/mounts > /dev/null
+sudo mount -t hugetlbfs nodev /mnt/huge
+
+
+sudo modprobe uio
+sudo insmod ~/dpdk16.07.2/i686-native-linuxapp-gcc/kmod/igb_uio.ko
+
+cd ~/dpdk16.07.2/tools
+
+sudo ./dpdk-devbind.py --bind=igb_uio 04:00.0 04:00.1
+
+cd ~/DPDKonCloud/skeleton
+
