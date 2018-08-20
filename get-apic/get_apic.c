@@ -29,27 +29,33 @@ static int mm_exp_load(void){
 	}
 	printk("Core apic_id = %d\n", read_apic_id());
 	printk("Core id = %d\n", smp_processor_id());
-
-	// safe_apic_wait_icr_idle();
-	// cfg = SET_APIC_DEST_FIELD(0);
+        while(count<10){
+	apic_wait_icr_idle();
+        mdelay(1000);
+	cfg = __prepare_ICR2(8);
 	// printk("cfg = 0x%lx\n", cfg);
-	// *(volatile u32 *)(APIC_BASE+APIC_ICR2)=cfg;
+	 *(volatile u32 *)(APIC_BASE+APIC_ICR2)=cfg;
 	
-	// cfg = 0|0x400;
+	 cfg = 0|0xc0c00;
 	// cfg = 0|0x80;
  	//    cfg = 0|0x7F00;
-	// printk("cfg = 0x%lx\n", cfg);
-	 while(count<1){
-	 		apic_wait_icr_idle();
-			mdelay(2000);
-	 		cfg = __prepare_ICR2(8);
-	 		printk("cfg=0x%lx\n", cfg);
- 	   		*(volatile u32 *)(APIC_BASE+APIC_ICR2)=cfg;
-	 		cfg = __prepare_ICR(APIC_DEST_ALLBUT,NMI_VECTOR,APIC_DEST_LOGICAL);
-	 		*(volatile u32 *)(APIC_BASE+APIC_ICR)=cfg;
-	 		count++;
-	 		printk("Count=%d\n",count);
-	 }
+        *(volatile u32 *)(APIC_BASE+APIC_ICR)=cfg;
+	printk("cfg = 0x%lx\n", cfg);
+        printk("Status: 0x%lx\n",*(u32*)(APIC_BASE+APIC_ICR));
+        count++;
+        }
+	// while(count<1){
+	// 		apic_wait_icr_idle();
+	//		mdelay(2000);
+	//		cfg = __prepare_ICR2(8);
+	// 		printk("cfg=0x%lx\n", cfg);
+ 	//   		*(volatile u32 *)(APIC_BASE+APIC_ICR2)=cfg;
+	// 		cfg = __prepare_ICR(APIC_DEST_ALLBUT,NMI_VECTOR,APIC_DEST_LOGICAL);
+	// 		*(volatile u32 *)(APIC_BASE+APIC_ICR)=cfg;
+	// 		printk("cfg=0x%lx\n",cfg);
+	//		count++;
+	// 		printk("Count=%d\n",count);
+	// }
 	// printk("sent\n");
 	//while(count<10){
 	//	        __default_send_IPI_shortcut(APIC_DEST_ALLBUT, NMI_VECTOR,APIC_DEST_LOGICAL);

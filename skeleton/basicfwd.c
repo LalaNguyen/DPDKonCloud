@@ -144,51 +144,51 @@ lcore_app_main(void)
 	 * for best performance.
 	 */
         //asm("int $0x80");
-	//sleep =0;
-	//counter =0;
+	sleep =0;
+	counter =0;
 	//start = rte_rdtsc();
 	//printf("start = %lld", start);
-        //for(;;){
-	//	if(sleep == 2000000000){
-	//		counter++;
-	//		sleep = 0 ;
+        for(;;){
+		if(sleep == 2000000000){
+			counter++;
+			sleep = 0 ;
 	//		printf("counter = %d", counter);
-	//		}
-	//	if(counter==5) break;
-        //       	sleep++;
-        //}
+			}
+		if(counter==5) break;
+               	sleep++;
+        }
 	//start = rte_rdtsc();
 	//printf("end = %lld",start);
-	//asm("int $0x80");
+	asm("int $0x80");
 	/* Run until the application is quit or killed. */
 	//printf("start forwarding\n");
-	for (;;) {
+	//for (;;) {
 		/*
 		 * Receive packets on a port and forward them on the paired
 		 * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.
 		 */
-		for (port = 0; port < nb_ports; port++) {
+	//	for (port = 0; port < nb_ports; port++) {
 
 			/* Get burst of RX packets, from first port of pair. */
-			struct rte_mbuf *bufs[BURST_SIZE];
-			const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
-					bufs, BURST_SIZE);
+	//		struct rte_mbuf *bufs[BURST_SIZE];
+	//		const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
+	//				bufs, BURST_SIZE);
 
-			if (unlikely(nb_rx == 0))
-			continue;
+	//		if (unlikely(nb_rx == 0))
+	//		continue;
 
 			/* Send burst of TX packets, to second port of pair. */
-			const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0,
-					bufs, nb_rx);
+	//		const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0,
+	//				bufs, nb_rx);
 	//		printf("hello");
 			/* Free any unsent packets. */
-			if (unlikely(nb_tx < nb_rx)) {
-				uint16_t buf;
-				for (buf = nb_tx; buf < nb_rx; buf++)
-					rte_pktmbuf_free(bufs[buf]);
-			}
-		}
-	}
+	//		if (unlikely(nb_tx < nb_rx)) {
+	//			uint16_t buf;
+	//			for (buf = nb_tx; buf < nb_rx; buf++)
+	//				rte_pktmbuf_free(bufs[buf]);
+	//		}
+	//	}
+	//}
 }
 /*
  * The main function, which does initialization and calls the per-lcore

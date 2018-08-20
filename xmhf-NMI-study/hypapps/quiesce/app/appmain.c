@@ -60,7 +60,7 @@ typedef struct {
 } page_pool_t;
 
 page_pool_t * ppool = NULL;
-page_pool_t * hpool = NULL;
+//page_pool_t * hpool = NULL;
 
 static inline void store_idt(struct desc_ptr *dtr){
  asm volatile("sidt %0":"=m" (*dtr));
@@ -172,7 +172,7 @@ int update_hypervisor_pt(VCPU *vcpu, struct proc_map_page_4K *start){    proc_ma
 
       head_hva = head_hva->next;
     }
-  print_host_table();
+  //print_host_table();
   return 0;
 }
 
@@ -244,7 +244,7 @@ proc_map_page_4K * get_proc_map_from_guest_app(VCPU *vcpu, struct regs *r){
   printf("\nCopy the list header from guest to host");
   mem_init();
   page_pool_init(ppool);
-  huge_page_pool_init(hpool);
+  //huge_page_pool_init(hpool);
   head_gva = malloc(sizeof(proc_map_t));
   head_hva = malloc(sizeof(proc_map_page_4K));
   /* marking the last entry with 0 */
@@ -293,11 +293,11 @@ proc_map_page_4K * get_proc_map_from_guest_app(VCPU *vcpu, struct regs *r){
           for (i = 0; i < npages; i++){
             host_paddr = (u32)gpa2hva((u32)gva2gpa(vcpu, (u32)host_vaddr));
 	    /* clone huge page*/
-	    cp_page = clone_huge_page((void*)host_paddr,ppool);
-	    tmp2 = hva2spa1(cp_page);
-            printf("\n Clone %p to %p", host_paddr, tmp2);
-	    push_pa_map(&head_hva, host_vaddr, tmp2, head_gva->is_huge_page);
-            //push_pa_map(&head_hva, host_vaddr, host_paddr, head_gva->is_huge_page);
+	    //cp_page = clone_huge_page((void*)host_paddr,ppool);
+	    //tmp2 = hva2spa1(cp_page);
+            //printf("\n Clone %p to %p", host_paddr, tmp2);
+	    //push_pa_map(&head_hva, host_vaddr, tmp2, head_gva->is_huge_page);
+            push_pa_map(&head_hva, host_vaddr, host_paddr, head_gva->is_huge_page);
             host_vaddr += PAGE_SIZE_2M;
         }
       }

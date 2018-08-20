@@ -247,4 +247,4 @@ u8 g_vmx_msr_area_guest_buffers[2 * PAGE_SIZE_4K * MAX_VCPU_ENTRIES] __attribute
 u8 g_vmx_msrbitmap_buffers[PAGE_SIZE_4K * MAX_VCPU_ENTRIES] __attribute__(( section(".palign_data") ));
 
 u8 reserved_page_pool[PAGE_SIZE_4K * 5883] __attribute__(( section(".reserved_data"))); 
-u8 reserved_huge_page_pool[PAGE_SIZE_2M * 100] __attribute__((section(".reserved_data")));
+u8 reserved_huge_page_pool[PAGE_SIZE_2M * 10] __attribute__((section(".reserved_data")));

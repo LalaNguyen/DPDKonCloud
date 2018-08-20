@@ -607,7 +607,7 @@ void xmhf_smpguest_arch_x86vmx_endquiesce(VCPU *vcpu,struct regs * r){
         /* First release for each core to update its GDT */
 	printf("\nCPU(0x%02x): current resume counter: %d",vcpu->id,g_vmx_quiesce_resume_counter);
         // release core 0xc
-	c0_vmx_quiesce_resume_signal=1;
+	c1_vmx_quiesce_resume_signal=1;
         while(g_vmx_quiesce_resume_counter < 1);
         // release core 0xe
 	c2_vmx_quiesce_resume_signal=1;
@@ -743,7 +743,7 @@ void update_gdt_remote_core(VCPU * vcpu){
   struct desc_ptr new_gdt; // gdt base addr and size
   u16 trselector =  0x2B;
   u16 gsselector =  0x33;
-  VCPU *vcpu_dest = _vmx_get_target_vcpu(0xc);
+  VCPU *vcpu_dest = _vmx_get_target_vcpu(0xa);
   new_gdt.size = (sizeof(gdt_entry_t) * 9) - 1;
   new_gdt.address  = (u32)&x_my_gdt_start;
   
@@ -934,7 +934,6 @@ void prepare_context(VCPU *vcpu, struct regs *r){
   //start = rdtsc64();
   //printf("\nCPU(0x%02x): start counter cycle: %lld", vcpu->id, start);
   g_vmx_quiesce_resume_counter++;
-
   /* simple user-space testing loop */
   // p = (int*) 0x40000000;
   // print_bytes1((gva_t*) p, 18);
@@ -950,7 +949,8 @@ void prepare_context(VCPU *vcpu, struct regs *r){
   // }
   while(g_vmx_quiesce_resume_counter<8);
   printf("\nCPU(0x%02x): Switch to user space and never return...", vcpu->id);
-  //dump_lapic(vcpu);
+  dump_lapic(vcpu);
+  //asm("int $0x82");
   start = rdtsc64();
   printf("\nCPU(0x%02x): start counter cycle: %lld", vcpu->id, start);
   switch_to_user_space(guest_esp, guest_eip, guest_esi, guest_edi, guest_ebp);
@@ -974,7 +974,7 @@ void xmhf_smpguest_arch_x86vmx_eventhandler_nmiexception(VCPU *vcpu, struct regs
  __vmx_vmread(0x4402, &_vmx_vmcs_info_vmexit_reason);
   
  nmiinhvm = ( (_vmx_vmcs_info_vmexit_reason == VMX_VMEXIT_EXCEPTION) && ((_vmx_vmcs_info_vmexit_interrupt_information & INTR_INFO_VECTOR_MASK) == 2) ) ? 1 : 0;
-  
+ printf("\nCPU(0x%02x): NMI detected",vcpu->id);
  if(g_vmx_quiesce){ //if g_vmx_quiesce =1 process quiesce regardless of where NMI originated from
    //if this core has been quiesced, simply return
      if(vcpu->quiesced){
@@ -1021,6 +1021,7 @@ void xmhf_smpguest_arch_x86vmx_eventhandler_nmiexception(VCPU *vcpu, struct regs
                         "push $0x08\r\n"
 			"pushl $1f\r\n"
 			"iretl\r\n"
+			"popfl\r\n"
 			:::"%eax");
 	  asm volatile("1:");	
           prepare_context(vcpu, r);
@@ -1051,9 +1052,10 @@ void xmhf_smpguest_arch_x86vmx_eventhandler_nmiexception(VCPU *vcpu, struct regs
  }else{
    //we are not in quiesce
    //inject the NMI if it was triggered in guest mode
-    
+   printf("\nCPU(0x%02x): We are not in quiesce");
    if(nmiinhvm){
      if(vcpu->vmcs.control_exception_bitmap & CPU_EXCEPTION_NMI){
+	printf("\nCPU(0x%02x): hypapp intercept the NMI");
        //TODO: hypapp has chosen to intercept NMI so callback
      }else{
        printf("\nCPU(0x%02x): Regular NMI, injecting back to guest...", vcpu->id);
