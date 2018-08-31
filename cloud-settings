@@ -1,0 +1,112 @@
+For the DPDK experiments, we have 3 PCs. Configuration of each PC is as follow
+Note that when install a new OS on the cloud, need to change the source file so it can download from the fastest source.
+A.	Sender PC - PC@8:
+Network Interface
+1.	eno1      Link encap:Ethernet  HWaddr a4:bf:01:21:b0:da	 (To PC@9 via DPDK Router 10GB – local lan)
+inet addr:192.168.4.44  Bcast:192.168.4.255  Mask:255.255.255.0
+2.	eno3      Link encap:Ethernet  HWaddr a4:bf:01:0f:7a:b4  (To DPDK Router 1GB – local lan)
+inet addr:192.168.2.22  Bcast:192.168.2.255  Mask:255.255.255.0
+3.	eno4      Link encap:Ethernet  HWaddr a4:bf:01:0f:7a:b5 (To internet, to SSH to this machine)
+inet addr:172.18.178.24  Bcast:172.18.178.31  Mask:255.255.255.224
+Network driver: ethtool -i eno1
+driver: ixgbe | version: 5.3.7 | firmware-version: 0x800004f8 | expansion-rom-version: |bus-info: 0000:04:00.0 | supports-statistics: yes | supports-test: yes | supports-eeprom-access: yes | supports-register-dump: yes | supports-priv-flags: yes
+Grub Menu: 
+4.	title           Ubuntu 16.04.4 LTS, kernel 4.4.0-116-generic
+root            (hd0)
+kernel          /vmlinuz-4.4.0-116-generic root=/dev/mapper/ubuntu--vg-root ro console=hvc0
+initrd          /initrd.img-4.4.0-116-generic
+5.	title           Ubuntu 16.04.4 LTS, kernel 4.4.0-116-generic (recovery mode)
+root            (hd0)
+kernel          /vmlinuz-4.4.0-116-generic root=/dev/mapper/ubuntu--vg-root ro  single
+initrd          /initrd.img-4.4.0-116-generic
+
+
+B.	Receiver PC – PC@9:
+Network Interface
+1.	eno1      Link encap:Ethernet  HWaddr a4:bf:01:21:ac:3b (to PC@8 via DPDK Router 10GB – local lan)
+inet addr:192.168.3.33  Bcast:192.168.3.255  Mask:255.255.255.0
+2.	eno3      Link encap:Ethernet  HWaddr a4:bf:01:0f:79:4c
+inet addr:192.168.1.11  Bcast:192.168.1.255  Mask:255.255.255.0 (to DPDK router 1GB – local lan)
+3.	eno4      Link encap:Ethernet  HWaddr a4:bf:01:0f:79:4d (to Internet, for SSH into the machine)
+inet addr:172.18.178.25  Bcast:172.18.178.31  Mask:255.255.255.224
+Network driver: ethtool -i eno1
+driver: ixgbe | version: 5.3.7 | firmware-version: 0x800004f8 | expansion-rom-version: | bus-info: 0000:04:00.0 | supports-statistics: yes | supports-test: yes | supports-eeprom-access: yes | supports-register-dump: yes | supports-priv-flags: yes
+Grub Menu: 
+4.	title           Ubuntu 16.04.4 LTS, kernel 4.4.0-116-generic
+root            (hd0)
+kernel          /vmlinuz-4.4.0-116-generic root=/dev/mapper/ubuntu--vg-root ro console=hvc0
+initrd          /initrd.img-4.4.0-116-generic
+5.	title           Ubuntu 16.04.4 LTS, kernel 4.4.0-116-generic (recovery mode)
+root            (hd0)
+kernel          /vmlinuz-4.4.0-116-generic root=/dev/mapper/ubuntu--vg-root ro  single
+initrd          /initrd.img-4.4.0-116-generic
+
+C.	Router - PC@7:
+This PC requires 2 IPs, one is used for IPMI to remotely reset the machine ( This is configured in BIOS, there is a place to configure the username and password. This IP is mainly used to reboot the machine when the hypervisor crash or hang from a remote distance. Assuming the BIOS can be accessible at 172.18.178.22, popular commands are:
+Turn on the machine:
+ipmitool -I lanplus -H 172.18.178.22 -U minh -P smu123 power on
+Turn off the machine:
+ipmitool -I lanplus -H 172.18.178.22 -U minh -P smu123 power off
+Activate a viewing session:
+ipmitool -I lanplus -H 172.18.178.22 -U minh -P smu123 sol activates
+View the status of a machine:
+ipmitool -I lanplus -H 172.18.178.22 -U minh -P smu123 power status
+Another IP is to ssh into the machine to compile and run code on the cloud
+Network Interface
+1.	eth0      Link encap:Ethernet  HWaddr a4:bf:01:0f:7a:14 (To internet, to SSH to this machine)
+inet addr:172.18.178.20  Bcast:172.18.178.31  Mask:255.255.255.224
+2.	eth2      Link encap:Ethernet  HWaddr a4:bf:01:0f:7a:16 
+inet addr:192.168.1.1  Bcast:192.168.1.255  Mask:255.255.255.0
+
+3.	eth3      Link encap:Ethernet  HWaddr a4:bf:01:0f:7a:17
+inet addr:192.168.2.1  Bcast:192.168.2.255  Mask:255.255.255.0
+Network devices using DPDK-compatible driver
+============================================
+0000:04:00.0 'Ethernet Controller 10-Gigabit X540-AT2' drv=igb_uio unused=ixgbe
+0000:04:00.1 'Ethernet Controller 10-Gigabit X540-AT2' drv=igb_uio unused=ixgbe
+Network devices using kernel driver
+===================================
+0000:02:00.0 'I350 Gigabit Network Connection' if=eth0 drv=igb unused=igb_uio *Active*
+0000:02:00.1 'I350 Gigabit Network Connection' if=eth1 drv=igb unused=igb_uio
+0000:02:00.2 'I350 Gigabit Network Connection' if=eth2 drv=igb unused=igb_uio *Active*
+0000:02:00.3 'I350 Gigabit Network Connection' if=eth3 drv=igb unused=igb_uio *Active*
+The Interface used by the DPDK has two ports (meaning of AT2) and it is exclusively control by the DPDK driver.
+Grub Menu
+# At the beginning, we have to put this so the IPMI somehow helps dump out the information up to the grub menu
+# menu.lst - See: grub(8), info grub, update-grub(8)
+#            grub-install(8), grub-floppy(8),
+#            grub-md5-crypt, /usr/share/doc/grub
+#            and /usr/share/doc/grub-legacy-doc/.
+serial --unit=0 --speed=115200
+terminal --timeout=10 serial console
+# At the end, we put this to print information from the grub menu onward
+4.	title           Ubuntu 12.04.5 LTS, kernel 3.13.0-32-generic (1st kernel to be installed on machine since the Ubuntu installer of this kernel can detect hardware configurations on cloud)
+uuid            11f5dcbb-0a51-4ed5-be61-58fae01050bc
+kernel          /vmlinuz-3.13.0-32-generic root=UUID=959ec956-ee86-4227-9f91-1372e3d26e8b ro console=tty0 console=ttyS0,115200n8 quiet splash
+initrd          /initrd.img-3.13.0-32-generic
+5.	title           Ubuntu 12.04.5 LTS, kernel 3.2.0.67-generic (2nd kernel to be installed on machine that is compatible with XMHF)
+uuid            11f5dcbb-0a51-4ed5-be61-58fae01050bc
+kernel          /vmlinuz-3.2.0-67-generic root=UUID=959ec956-ee86-4227-9f91-1372e3d26e8b ro isolcpus=1,2,3,4 maxcpus=1  console=tty0 console=ttyS0,115200n8 quite splash
+initrd          /initrd.img-3.2.0-67-generic
+6.	title           Ubuntu 12.04.5 LTS, kernel 3.13.0-32-generic (recovery mode)
+uuid            11f5dcbb-0a51-4ed5-be61-58fae01050bc
+kernel          /vmlinuz-3.13.0-32-generic root=UUID=959ec956-ee86-4227-9f91-1372e3d26e8b ro  single
+initrd          /initrd.img-3.13.0-32-generic
+7.	title           Ubuntu 12.04.5 LTS, memtest86+
+uuid            11f5dcbb-0a51-4ed5-be61-58fae01050bc
+kernel          /memtest86+.bin
+### END DEBIAN AUTOMAGIC KERNELS LIST
+8.	title XMHF
+rootnoverify (hd0,1)
+kernel /init-x86.bin serial=115200,8n1,0x3f8
+module /hypervisor-x86.bin.gz
+modulenounzip (hd0)+1
+module /Xeon-E7-8800-4800-2800-SINIT-v1.1.bin (Not correct SINIT for the machine but put it here as a placeholder will work)
+Important Notes: Remember to update the network driver at both sender and receiver to avoid packet loss. Old driver causes packet loss.
+
+Note on the DPDKproject on the cloud: The most up-to-date version is XMHF-NMI-Study where we have complete the implementation of:
+-	Cloning Memory (4K page only because huge page is not copy able and some system mapped memory cannot be cloned)
+-	Cloning the Execution of the CPU to another CPU
+-	This setting the lcore 0 runs normally, the hypervisor remaps the content of lcore 0 to lcore 1 and run the router in lcore 1. Lcore 0 can be used normally to execute kernel functions.
+The router is executed with sudo ./build/basicfwd -c 0x1 -- -p 0x3
+XMHF only supports max to 8 CPUs
