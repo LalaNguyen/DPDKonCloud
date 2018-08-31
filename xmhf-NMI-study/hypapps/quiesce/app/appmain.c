@@ -263,8 +263,10 @@ proc_map_page_4K * get_proc_map_from_guest_app(VCPU *vcpu, struct regs *r){
 	    host_paddr = (u32)gpa2hva((u32)gva2gpa(vcpu, (u32)host_vaddr));
             //src_page = spa2hva((spa_t)host_paddr);
             //tmp1 = (u32)src_page;
+	    /* clone host_paddr from page extracted from page pool*/
 	    cp_page = clone_page((void*)host_paddr,ppool);
             //tmp3 = (u32)cp_page;
+	    /* get the physical address of cp_page */
 	    tmp2 =  hva2spa1(cp_page);
 
 	    /*if(host_vaddr <= 0x400000){

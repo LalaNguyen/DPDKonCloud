@@ -758,7 +758,7 @@ void update_gdt_remote_core(VCPU * vcpu){
           gsselector = 0x33;
           gdt_set_gate((u32 *)new_gdt.address, 6, vcpu->vmcs.guest_GS_base, 0xFFFFFFFF, 0xF2, 0xDF); // User mode data segment
           break;
-        case 0xe:
+        case 0xe: /* use the context of original core 0xa */
           gsselector = 0x3B;
           gdt_set_gate((u32 *)new_gdt.address, 7, vcpu_dest->vmcs.guest_GS_base, 0xFFFFFFFF, 0xF2, 0xDF); // User mode data segment
           break;
@@ -838,7 +838,7 @@ void prepare_context(VCPU *vcpu, struct regs *r){
   //unsigned int sleep;
   // u32 i, total_page, hva = 0;
   VCPU* vcpu_dest;
-  uint64_t start;
+  //uint64_t start;
  //  int * p;
   //guest_ebp = r->ebp;
   //guest_esi = r->esi;
@@ -854,7 +854,7 @@ void prepare_context(VCPU *vcpu, struct regs *r){
   vcpu_dest = _vmx_get_target_vcpu(0xe);
   printf("\nCPU(0x%02x): Address of VCPU 0x%02x (0xe) is %p",vcpu->id, vcpu_dest->id, vcpu_dest);
   
-  // use context of VCPI 0xc
+  // use context of VCPI 0xe
   guest_ebp = master_gpr.ebp;
   guest_esi = master_gpr.esi;
   guest_edi = master_gpr.edi;
@@ -909,6 +909,7 @@ void prepare_context(VCPU *vcpu, struct regs *r){
   printf("\nCPU(0x%02x): EOQ received, resuming to host...", vcpu->id);
   
   {
+    /* statically set the context of this cloned CPU to reflect the original CPU */
     unsigned long cr0, cr4;
     u64 xcr_value;
     cr0 = read_cr0();
@@ -949,10 +950,10 @@ void prepare_context(VCPU *vcpu, struct regs *r){
   // }
   while(g_vmx_quiesce_resume_counter<8);
   printf("\nCPU(0x%02x): Switch to user space and never return...", vcpu->id);
-  dump_lapic(vcpu);
+  //dump_lapic(vcpu);
   //asm("int $0x82");
-  start = rdtsc64();
-  printf("\nCPU(0x%02x): start counter cycle: %lld", vcpu->id, start);
+  //start = rdtsc64();
+  //printf("\nCPU(0x%02x): start counter cycle: %lld", vcpu->id, start);
   switch_to_user_space(guest_esp, guest_eip, guest_esi, guest_edi, guest_ebp);
 
 }
